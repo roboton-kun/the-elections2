@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <!-- Cropper.js の CSS / JS (CDN) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <script src="https://unpkg.com/dexie@3/dist/dexie.js"></script>
+    <script src="script/id.js"></script>
+    <script src="script/listcountry.js"></script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POLITICAL GAME</title>
+    <style>
+        body {
+            background: #1b2431;
+            color: #f0f4ff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px 0;
+        }
+
+        .container {
+            width: min(620px, 90%);
+            background: #252f44;
+            border-radius: 18px;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+            padding: 28px;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 1.8rem;
+            text-align: center;
+        }
+
+        .field {
+            margin-bottom: 18px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .avatar-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            background: #1d273a;
+            padding: 16px;
+            border-radius: 14px;
+            border: 1px dashed #3b4a70;
+        }
+
+        /* まんまるのプレビュー枠 */
+        .avatar-preview {
+            width: 120px;
+            height: 120px;
+            border: #4376ea;
+            background: #2d3b5a;
+            border: 3px solid #5c8cff;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* 本物のダサいボタンは画面から隠す */
+        #avatar {
+            display: none;
+        }
+
+        /* 代わりのカッコいいアップロードボタン */
+        .upload-btn {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #3b4a70;
+            color: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: 0.2s;
+        }
+
+        .upload-btn:hover {
+            background: #4a5c8c;
+        }
+
+        input[type="text"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #3b4a70;
+            border-radius: 12px;
+            background: #2d3b5a;
+            color: #eef2ff;
+            font-size: 1rem;
+            box-sizing: border-box;
+            /* 横幅のハミ出しを防ぐ魔法のコード */
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .row {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .row .field {
+            flex: 1 1 180px;
+        }
+
+        /* スライダーの文字を綺麗に並べるための設定 */
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            font-size: 0.85rem;
+            color: #a0aec0;
+        }
+
+        /* 現在の思想を表示する強調文字 */
+        #econStatus {
+            font-weight: bold;
+            color: #5c8cff;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px 18px;
+            border: none;
+            border-radius: 14px;
+            background: #5c8cff;
+            color: #fff;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background: #4376ea;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>作成！</h1>
+        <div id="cropModal"
+            style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; text-align:center; padding:20px;">
+            <div style="max-width: 400px; max-height: 400px; margin: 20px auto; background: #fff;">
+                <img id="cropImage" style="max-width: 100%;">
+            </div>
+            <button type="button" id="cropSaveBtn" style="padding: 10px 20px; font-size: 16px;">この位置で決定</button>
+            <button type="button" id="cropCancelBtn" style="padding: 10px 20px; font-size: 16px;">キャンセル</button>
+        </div>
+        <form id="profileForm">
+            <!-- ★新しくなったアバター画像エリア★ -->
+            <div class="field">
+                <label>アバター画像</label>
+                <div class="avatar-area">
+                    <!-- 初期画像（まだ選ばれていない時のシルエット画像） -->
+                    <img id="avatarPreview" class="avatar-preview"
+                        src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/No_image_%28male%29.svg/250px-No_image_%28male%29.svg.png"
+                        alt="プレビュー">
+
+                    <!-- クリックするためのラベル（ボタンに見えるようにデザインしています） -->
+                    <label for="avatar" class="upload-btn">画像を選択する</label>
+
+
+                    <!-- 本物のボタン（隠されています） -->
+                    <input id="avatar" type="file" accept="image/*" />
+                </div>
+            </div>
+            <!-- 名前 -->
+            <div class="field">
+                <label for="playerName">名前</label>
+                <!-- class="save" を追加しました -->
+                <input id="playerName" class="save" type="text" placeholder="名前を入力してください" />
+            </div>
+
+            <div class="field">
+                <label for="giseki">下院議席数</label>
+                <!-- class="save" を追加しました -->
+                <input id="giseki" class="save" type="text" placeholder="数字を入力してください（例：465）" />
+            </div>
+
+            <div class="field">
+                <label for="kainhirei">下院比例<br />（※初期：ON）</label>
+                <!-- class="save" を追加しました -->
+                <input id="kainhirei" class="save" type="checkbox" checked />
+            </div>
+
+            <div class="field">
+                <label for="senate">上院<br />（※初期：ON）</label>
+                <!-- class="save" を追加しました -->
+                <input id="senate" class="save" type="checkbox" checked />
+            </div>
+
+            <div class="field">
+                <label for="senategiseki">上院議席数</label>
+                <!-- class="save" を追加しました -->
+                <input id="senategiseki" class="save" type="text" placeholder="数字を入力してください（例：248）" />
+            </div>
+
+
+            <label for="countrySelect">開始する国:</label>
+            <select id="countrySelect" class="save">
+                <!-- 💡 ここにJavaScriptで自動的に国一覧を生成するよ！ -->
+            </select>
+
+            <div class="row">
+                <div class="field">
+                    <label for="do">制度</label>
+                    <select id="do" class="save">
+                        <option value="pr">大統領制</option>
+                        <option value="mi">議院内閣制</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="vicepresident">副大統領<br />（※大統領制のみ）</label>
+                <!-- class="save" を追加しました -->
+                <input id="vicepresident" class="save" type="checkbox" checked />
+            </div>
+
+            <div class="field">
+                <label for="kachi">勝ち取りシステム<br />（※現実で言うとアメリカの選挙人団制度みたいなものです）</label>
+                <!-- type="checkbox" に変更 -->
+                <input id="kachi" class="save" type="checkbox" />
+            </div>
+
+            <div class="field">
+                <label for="twopartysys">2大政党制・議会<br />（※上位2つの政党以外は議席獲得がかなり難しくなります）</label>
+                <!-- type="checkbox" に変更 -->
+                <input id="twopartysys" class="save" type="checkbox" />
+            </div>
+
+            <div class="field">
+                <label for="startYear">開始年</label>
+                <!-- class="save" を追加しました -->
+                <input id="startYear" class="save" type="number" placeholder="例：2020年" />
+            </div>
+
+            <!-- 何系（職業） -->
+            <div class="row">
+                <div class="field">
+                    <label for="class">何系</label>
+                    <select id="class" class="save">
+                        <option value="n">なし</option>
+                        <option value="kaisya">会社員</option>
+                        <option value="seiji">政治活動家</option>
+                        <option value="roudo">労働組合員</option>
+                    </select>
+                </div>
+            </div>
+
+            <input type="hidden" id="partiesData" class="save">
+            <input type="hidden" id="npcsData" class="save">
+
+            <!-- 🌟 ここに政党追加コンテナを設置！ -->
+            <div class="field">
+                <label>初期政党の作成・編集</label>
+                <div id="partyListContainer"
+                    style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 10px;">
+                    <!-- ここにJavaScriptで政党入力カードが動的に追加される -->
+                </div>
+                <button type="button" id="addPartyBtn"
+                    style="width: 100%; padding: 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    ＋ 新しい政党を追加する
+                </button>
+            </div>
+            <!-- ★新設：カスタムNPC作成エリア（別枠） -->
+            <div class="field" style="display: flex; flex-direction: column; gap: 15px;">
+
+                <!-- 上段：一括操作ボタン（横並び） -->
+                <div class="action-group" style="display: flex; gap: 10px; align-items: center;">
+                    <button type="button" onclick="window.exportNpcsToJsonFile()"
+                        style="padding: 6px 12px; background: #28a745; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
+                        📥 JSONで一括保存 (ファイル出力)
+                    </button>
+
+                    <label
+                        style="padding: 6px 12px; background: #007bff; color: #fff; border-radius: 4px; cursor: pointer; display: inline-block; margin: 0;">
+                        📤 JSONファイルから一括読込
+                        <input type="file" accept=".json" onchange="window.importNpcsFromJsonFile(event)"
+                            style="display: none;">
+                    </label>
+
+                    <button type="button" onclick="window.resetAllNpcsData()"
+                        style="padding: 6px 12px; background: #dc3545; color: #fff; border: none; border-radius: 4px; cursor: pointer; margin-left: auto;">
+                        🧹 全てリセット
+                    </button>
+                </div>
+
+                <div class="list-group">
+                    <label style="display: block; font-weight: bold; margin-bottom: 8px;">カスタム人物の作成・編集</label>
+
+                    <!-- スクロール対応：高さを固定してはみ出た分をスクロール可能に -->
+                    <div id="npcListContainer"
+                        style="display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto; padding-right: 4px; margin-bottom: 10px; border: 1px dashed #ccc; border-radius: 6px; padding: 8px;">
+                        <!-- ここにJavaScriptでNPC入力カードが動的に追加される -->
+                    </div>
+                </div>
+
+
+                <!-- 下段：追加ボタン -->
+                <button type="button" id="addNpcBtn"
+                    style="width: 100%; padding: 10px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    ＋ 新しいカスタム人物を追加する
+                </button>
+
+            </div>
+
+
+            <!-- 経済思想スライダー -->
+            <div class="field" style="text-align:center;">
+                <label>経済思想（現在の傾向：<span id="econStatus">中立</span>）</label>
+                <div class="slidecontainer">
+                    <input type="range" min="1" max="100" value="50" class="slider save" id="econ" style="width: 100%">
+                </div>
+                <!-- ラベルの並びをきれいに整理しました -->
+                <div class="slider-labels">
+                    <div>経済左派</div>
+                    <div>中立</div>
+                    <div>経済右派</div>
+                </div>
+                <label>国家（現在の傾向：<span id="nationStatus">中立</span>）</label>
+                <div class="slidecontainer">
+                    <input type="range" min="1" max="100" value="50" class="slider save" id="nation"
+                        style="width: 100%">
+                </div>
+                <!-- ラベルの並びをきれいに整理しました -->
+                <div class="slider-labels">
+                    <div>自由主義</div>
+                    <div>中立</div>
+                    <div>権威主義</div>
+                </div>
+                <label>外交（現在の傾向：<span id="diplomacyStatus">中立</span>）</label>
+                <div class="slidecontainer">
+                    <input type="range" min="1" max="100" value="50" class="slider save" id="diplomacy"
+                        style="width: 100%">
+                </div>
+                <!-- ラベルの並びをきれいに整理しました -->
+                <div class="slider-labels">
+                    <div>国際協調</div>
+                    <div>中立</div>
+                    <div>自国第一</div>
+                </div>
+            </div>
+
+            <h2 id="totalStatus"></h2>
+            <!-- エクスポートボタン -->
+            <button type="submit">ゲームを開始する</button>
+        </form>
+    </div>
+
+    <!-- ここからスクリプト（JavaScript） -->
+    <script>
+
+        // ========================================================
+        // 🟢【JSONファイルへ一括エクスポート】
+        // IndexedDBの全データをJSONファイル(npcs_export.json)としてダウンロードします
+        // ========================================================
+        window.exportNpcsToJsonFile = async function () {
+            try {
+                // Dexieから全データを取得
+                const npcList = await db.npcs.toArray();
+
+                if (npcList.length === 0) {
+                    alert("保存するNPCデータがありません。");
+                    return;
+                }
+
+                // JSON文字列に変換（インデントを入れて見やすく整形）
+                const jsonString = JSON.stringify(npcList, null, 2);
+
+                // Blobオブジェクトを作成してダウンロードリンクを生成
+                const blob = new Blob([jsonString], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `npcs_backup_${Date.now()}.json`; // ファイル名にタイムスタンプを付与
+                document.body.appendChild(a);
+                a.click();
+
+                // 後片付け
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                console.log("JSONファイルのエクスポートが完了しました。");
+            } catch (error) {
+                console.error("JSONエクスポート中にエラーが発生しました:", error);
+                alert("ファイル出力に失敗しました。");
+            }
+        };
+
+        // ========================================================
+        // 🟢【JSONファイルから一括インポート】
+        // 選択されたJSONファイルを読み込み、IndexedDBに一括保存して画面を更新します
+        // ========================================================
+        window.importNpcsFromJsonFile = function (fileInputEvent) {
+            const file = fileInputEvent.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function (e) {
+                try {
+                    // テキストをJSONオブジェクト(配列)にパース
+                    const importedData = JSON.parse(e.target.result);
+
+                    if (!Array.isArray(importedData)) {
+                        throw new Error("JSONのデータ構造が配列ではありません。");
+                    }
+
+                    // 1. 既存のIndexedDBデータを全削除（完全に置き換える場合）
+                    // ※もし「上書き追加」にしたい場合は、下の db.npcs.clear() をコメントアウトしてください
+                    await db.npcs.clear();
+
+                    // 2. Dexieの bulkPut で一括インポート
+                    if (importedData.length > 0) {
+                        await db.npcs.bulkPut(importedData);
+                    }
+
+                    // 3. 画面のDOM表示をリフレッシュ（一括ロード関数を再呼出）
+                    if (typeof window.loadAllNpcs === 'function') {
+                        await window.loadAllNpcs();
+                    }
+
+                    alert(`JSONファイルから ${importedData.length} 件のNPCデータをインポートしました！`);
+
+                    // 次回同じファイルを選んでもイベントが発火するように、inputの値をリセット
+                    fileInputEvent.target.value = '';
+
+                } catch (error) {
+                    console.error("JSONインポート中にエラーが発生しました:", error);
+                    alert("無効なJSONファイルです。NPCデータの形式を確認してください。");
+                }
+            };
+
+            reader.readAsText(file);
+        };
+
+
+        // 全政党を格納するオブジェクト（または配列）
+        const parties = {};
+
+        // 1. スライダー等の状態更新用汎用関数
+        function updateSliderStatus(value, statusElement, leftName, rightName) {
+            if (!statusElement) return;
+            const val = parseInt(value, 10);
+            if (val === 50) {
+                statusElement.textContent = "中立";
+            } else if (val < 30) {
+                statusElement.textContent = leftName;
+            } else if (val < 50) {
+                statusElement.textContent = `${leftName}（寄り）`;
+            } else if (val > 70) {
+                statusElement.textContent = rightName;
+            } else if (val > 50) {
+                statusElement.textContent = `${rightName}（寄り）`;
+            }
+        }
+        // 2. アバター画像保存関数（Dexie対応版）
+        async function compressAndSaveAvatar(file) {
+            const previewImg = document.getElementById('avatarPreview');
+            if (!previewImg) return;
+
+            // 1. FileオブジェクトをImageオブジェクトとして読み込む
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+
+            await new Promise((resolve) => (img.onload = resolve));
+
+            // 2. JavaScript内だけで非表示のCanvasを生成（HTMLには追加しない）
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // 出力したい正方形のサイズ（例：400x400ピクセル）
+            const targetSize = 400;
+            canvas.width = targetSize;
+            canvas.height = targetSize;
+
+            // 3. 中央を正方形にくり抜く（Crop）ための計算
+            let srcX = 0;
+            let srcY = 0;
+            let srcSize = Math.min(img.width, img.height);
+
+            if (img.width > img.height) {
+                // 横長画像の場合：左右を削る
+                srcX = (img.width - img.height) / 2;
+            } else {
+                // 縦長画像の場合：上下を削る
+                srcY = (img.height - img.width) / 2;
+            }
+
+            // Canvasに中央部分をトリミングして描画
+            ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, targetSize, targetSize);
+
+            // 4. WebPまたはJPEG形式で画質を指定して圧縮（例: 品質 0.8）
+            // アバターなので軽量化のために image/webp か image/jpeg を推奨
+            const base64Data = canvas.toDataURL('image/jpeg', 0.8);
+
+            // 5. Dexie (PoligameDB) に保存
+            await db.settings.put({ id: "avatar", value: base64Data });
+
+            // 6. プレビュー表示
+            previewImg.src = base64Data;
+            previewImg.style.display = "block";
+
+            // メモリ解放
+            URL.revokeObjectURL(img.src);
+        }
+
+        // 国一覧セレクトボックスの生成
+        const countrySelect = document.getElementById("countrySelect");
+        if (countrySelect && typeof country !== 'undefined') {
+            Object.keys(country).forEach(code => {
+                const option = document.createElement("option");
+                option.value = code;
+                option.textContent = country[code].name;
+                countrySelect.appendChild(option);
+            });
+        }
+        // --- 1. Dexieデータベースの初期化 ---
+        const db = new Dexie("PoligameDB");
+        db.version(1).stores({
+            // keyPath は 'id' に設定
+            settings: 'id',
+            parties: 'id',
+            npcs: 'id'
+        });
+
+        // --- DOM構築完了後のメイン初期化処理 ---
+        document.addEventListener("DOMContentLoaded", async () => {
+            const saveElements = document.querySelectorAll(".save");
+            const econStatus = document.getElementById("econStatus");
+            const nationStatus = document.getElementById("nationStatus");
+            const diplomacyStatus = document.getElementById("diplomacyStatus");
+            const previewImg = document.getElementById('avatarPreview');
+
+            // --- 設定データの読み込み補助関数 ---
+            async function getSetting(key, defaultValue = null) {
+                const item = await db.settings.get(key);
+                return item ? item.value : defaultValue;
+            }
+
+            async function setSetting(key, value) {
+                await db.settings.put({ id: key, value: value });
+            }
+
+            // アバター画像の復元
+            const savedAvatar = await getSetting("avatar");
+            if (savedAvatar && previewImg) {
+                previewImg.src = savedAvatar;
+                previewImg.style.display = "block";
+            }
+
+            const sliderConfig = {
+                econ: { statusElem: econStatus, leftText: "経済左派", rightText: "経済右派" },
+                nation: { statusElem: nationStatus, leftText: "自由主義", rightText: "権威主義" },
+                diplomacy: { statusElem: diplomacyStatus, leftText: "国際協調", rightText: "自国第一" }
+            };
+
+            function refreshIdeology() {
+                const playerEcon = parseInt(document.getElementById("econ")?.value || 50, 10);
+                const playerNation = parseInt(document.getElementById("nation")?.value || 50, 10);
+                const playerDiplomacy = parseInt(document.getElementById("diplomacy")?.value || 50, 10);
+
+                if (typeof totalStatus !== 'undefined' && totalStatus && typeof getIdeologyName === 'function') {
+                    totalStatus.textContent = getIdeologyName([playerEcon, playerNation, playerDiplomacy]);
+                }
+            }
+
+            // A. 一般フォーム項目（Classセレクトボックス、スライダー、名前等）の復元
+            for (const element of saveElements) {
+                if (element.id === 'partiesData' || element.id === 'npcsData') continue;
+
+                const config = sliderConfig[element.id];
+                const savedValue = await getSetting(element.id);
+
+                if (savedValue !== undefined && savedValue !== null) {
+                    if (element.type === 'checkbox') {
+                        element.checked = Boolean(savedValue);
+                    } else {
+                        element.value = savedValue;
+                    }
+
+                    if (config) {
+                        updateSliderStatus(savedValue, config.statusElem, config.leftText, config.rightText);
+                    }
+                }
+            }
+
+            // B. 政党データ同期関数（Dexie対応）
+            window.syncPartiesData = async function () {
+                const cards = document.querySelectorAll('.party-card');
+                const partiesArray = [];
+
+                cards.forEach((card, index) => {
+                    const name = card.querySelector('.party-name-input').value.trim();
+                    const color = card.querySelector('.party-color-input').value;
+                    const ratio = Number(card.querySelector('.party-ratio-slider').value);
+                    const econ = Number(card.querySelector('.party-econ-slider').value);
+                    const nation = Number(card.querySelector('.party-nation-slider').value);
+                    const diplo = Number(card.querySelector('.party-diplo-slider').value);
+
+                    const partyId = 'party_' + (index + 1).toString().padStart(2, '0');
+
+                    if (name) {
+                        partiesArray.push({ id: partyId, name, color, ratio, econ, nation, diplo });
+
+                        if (typeof Party !== 'undefined') {
+                            parties[partyId] = new Party(partyId, name, null, color, econ, nation, diplo, ratio);
+                        }
+                    }
+                });
+
+                // テーブルを丸ごとクリアして一括挿入
+                await db.parties.clear();
+                await db.parties.bulkPut(partiesArray);
+            };
+
+            window.resetAllNpcsData = async function () {
+                if (!confirm("すべてのカスタム人物データを削除して初期化しますか？\n（この操作は取り消せません）")) {
+                    return;
+                }
+
+                // 1. 画面上のカードを全消去
+                const container = document.getElementById('npcListContainer');
+                if (container) {
+                    container.innerHTML = '';
+                }
+
+                // 2. Dexieのデータベースをクリア
+                if (window.db && window.db.npcs) {
+                    await db.npcs.clear();
+                }
+
+                alert("すべてのデータをリセットしました。");
+            };
+
+            // C. 政党カード追加関数
+            window.addPartyCard = function (data = { name: '', color: '#3366cc', ratio: 20, econ: 50, nation: 50, diplo: 50 }, autoSync = true) {
+                const container = document.getElementById('partyListContainer');
+                if (!container) return;
+
+                const cardId = 'party_card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+
+                const cardHtml = `
+        <div class="party-card" id="${cardId}" style="border: 1px solid #ccc; padding: 12px; border-radius: 8px; background: #f9f9f9; margin-bottom: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <strong style="color:black;">政党設定</strong>
+                <button type="button" class="remove-btn" style="background: #ff4d4d; color: white; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer;">削除</button>
+            </div>
+            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <input type="text" class="party-name-input" placeholder="政党名" value="${data.name || ''}" style="flex: 1; padding: 6px;" required>
+                <input type="color" class="party-color-input" value="${data.color || '#3366cc'}" style="width: 40px; height: 32px; border: none; cursor: pointer;">
+            </div>
+            <div style="font-size: 0.85em; color:black; display: flex; flex-direction: column; gap: 5px;">
+                <div>所属比率: <span class="ratio-val">${data.ratio ?? 20}</span>% <input type="range" min="1" max="100" value="${data.ratio ?? 20}" class="party-ratio-slider" style="width: 100%"></div>
+                <div>経済思想: <span class="econ-val">${data.econ ?? 50}</span> <input type="range" min="1" max="100" value="${data.econ ?? 50}" class="party-econ-slider" style="width: 100%"></div>
+                <div>国家主義: <span class="nation-val">${data.nation ?? 50}</span> <input type="range" min="1" max="100" value="${data.nation ?? 50}" class="party-nation-slider" style="width: 100%"></div>
+                <div>外交姿勢: <span class="diplo-val">${data.diplo ?? 50}</span> <input type="range" min="1" max="100" value="${data.diplo ?? 50}" class="party-diplo-slider" style="width: 100%"></div>
+            </div>
+        </div>`;
+
+                container.insertAdjacentHTML('beforeend', cardHtml);
+                const card = document.getElementById(cardId);
+
+                card.querySelector('.remove-btn').addEventListener('click', async () => {
+                    card.remove();
+                    await syncPartiesData();
+                    if (typeof updateNpcPartyOptions === 'function') {
+                        updateNpcPartyOptions();
+                    }
+                });
+
+                const ratioSlider = card.querySelector('.party-ratio-slider');
+                const ratioVal = card.querySelector('.ratio-val');
+                ratioSlider.addEventListener('input', () => { ratioVal.textContent = ratioSlider.value; });
+
+                const econSlider = card.querySelector('.party-econ-slider');
+                const econVal = card.querySelector('.econ-val');
+                econSlider.addEventListener('input', () => { econVal.textContent = econSlider.value; });
+
+                const nationSlider = card.querySelector('.party-nation-slider');
+                const nationVal = card.querySelector('.nation-val');
+                nationSlider.addEventListener('input', () => { nationVal.textContent = nationSlider.value; });
+
+                const diploSlider = card.querySelector('.party-diplo-slider');
+                const diploVal = card.querySelector('.diplo-val');
+                diploSlider.addEventListener('input', () => { diploVal.textContent = diploSlider.value; });
+
+                card.querySelectorAll('input, select').forEach(input => {
+                    input.addEventListener('input', async () => {
+                        await syncPartiesData();
+                        if (typeof updateNpcPartyOptions === 'function') {
+                            updateNpcPartyOptions();
+                        }
+                    });
+                });
+
+                if (autoSync) {
+                    syncPartiesData();
+                    if (typeof updateNpcPartyOptions === 'function') {
+                        updateNpcPartyOptions();
+                    }
+                }
+            };
+
+            // D. NPCデータ同期関数（Dexie対応）
+            window.syncNpcsData = async function () {
+                if (window.isRestoringNpcs) return;
+
+                const npcCards = document.querySelectorAll('#npcListContainer .npc-card');
+                const npcsArray = [];
+
+                npcCards.forEach((card, index) => {
+                    const nameInput = card.querySelector('.npc-name-input');
+                    const partySelect = card.querySelector('.npc-party-select');
+                    const econSlider = card.querySelector('.npc-econ-slider');
+                    const nationSlider = card.querySelector('.npc-nation-slider');
+                    const diploSlider = card.querySelector('.npc-diplo-slider');
+                    const avatarPreview = card.querySelector('.npc-avatar-preview');
+                    const prefSelect = card.querySelector('.npc-pref-select');
+                    const citySelect = card.querySelector('.npc-city-select');
+
+                    if (nameInput) {
+                        const name = nameInput.value.trim();
+                        if (name) {
+                            npcsArray.push({
+                                id: 'npc_' + index + '_' + Date.now(),
+                                name: name,
+                                partyId: partySelect ? partySelect.value : 'none',
+                                econ: econSlider ? Number(econSlider.value) : 50,
+                                nation: nationSlider ? Number(nationSlider.value) : 50,
+                                diplo: diploSlider ? Number(diploSlider.value) : 50,
+                                avatar: avatarPreview ? avatarPreview.src : '',
+                                pref: prefSelect ? prefSelect.value : '',
+                                city: citySelect ? citySelect.value : ''
+                            });
+                        }
+                    }
+                });
+
+                // テーブルを丸ごとクリアして一括挿入
+                await db.npcs.clear();
+                await db.npcs.bulkPut(npcsArray);
+            };
+
+            // E. NPCカード追加関数
+            window.addNpcCard = function (data = { name: '', partyId: 'none', econ: 50, nation: 50, diplo: 50, avatar: '', pref: '', city: '' }, autoSync = true) {
+                const container = document.getElementById('npcListContainer');
+                if (!container) return;
+
+                const cardId = 'npc_card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+                const cardHtml = `
+<div class="npc-card" id="${cardId}" style="border: 1px solid #ccc; padding: 10px; border-radius: 8px; background: #fff; margin-bottom: 8px; font-size: 0.85em; color: #333;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <strong style="color:#000;">人物設定</strong>
+        <button type="button" class="remove-btn" style="background: #ff4d4d; color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 0.8em;">削除</button>
+    </div>
+
+    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+        <div class="avatar-area" style="position: relative; shrink: 0;">
+            <img class="npc-avatar-preview"
+                src="${data.avatar || 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/No_image_%28male%29.svg/250px-No_image_%28male%29.svg.png'}" 
+                alt="プレビュー" style="width: 48px; height: 48px; object-fit: cover; border-radius: 50%; border: 1px solid #ccc; display: block;">
+            <label for="avatar_${cardId}" class="upload-btn" style="position: absolute; bottom: -2px; right: -2px; background: #666; color: #fff; font-size: 0.6em; padding: 1px 3px; border-radius: 3px; cursor: pointer;">変更</label>
+            <input id="avatar_${cardId}" type="file" class="npc-avatar-input" accept="image/*" style="display: none;" />
+        </div>
+        <div style="display: flex; flex: 1; gap: 4px; min-width: 0;">
+            <input type="text" class="npc-name-input" placeholder="NPC名" value="${data.name || ''}" style="flex: 1; min-width: 0; padding: 4px; border: 1px solid #ccc; border-radius: 4px;" required>
+            <select class="npc-party-select" data-selected="${data.partyId || 'none'}" style="flex: 0 0 auto; min-width: 80px; max-width: 110px; padding: 4px; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="none">無所属</option>
+            </select>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; background: #f9f9f9; padding: 6px; border-radius: 6px;">
+        <div class="npc-param-block">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75em; font-weight: bold; color: #555;">
+                <span>左派</span><span>経済</span><span>右派</span>
+            </div>
+            <input type="range" min="1" max="100" value="${data.econ ?? 50}" class="npc-econ-slider" style="width: 100%; height: 4px; margin: 2px 0;">
+        </div>
+
+        <div class="npc-param-block">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75em; font-weight: bold; color: #555;">
+                <span>自由</span><span>国家</span><span>権威</span>
+            </div>
+            <input type="range" min="1" max="100" value="${data.nation ?? 50}" class="npc-nation-slider" style="width: 100%; height: 4px; margin: 2px 0;">
+        </div>
+
+        <div class="npc-param-block">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75em; font-weight: bold; color: #555;">
+                <span>協調</span><span>外交</span><span>自国</span>
+            </div>
+            <input type="range" min="1" max="100" value="${data.diplo ?? 50}" class="npc-diplo-slider" style="width: 100%; height: 4px; margin: 2px 0;">
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: center; background: #eef4fa; border-radius: 4px; font-weight: bold; font-size: 0.8em; color: #1a568c;">
+            <span class="npc-ideology-status">-</span>
+        </div>
+    </div>
+</div>`;
+
+                container.insertAdjacentHTML('beforeend', cardHtml);
+                const card = document.getElementById(cardId);
+
+                if (typeof updateNpcPartyOptions === 'function') {
+                    updateNpcPartyOptions(card);
+                }
+
+                card.querySelector('.remove-btn').addEventListener('click', async () => {
+                    card.remove();
+                    await syncNpcsData();
+                });
+
+                const updateNpcIdeology = () => {
+                    const econVal = parseInt(card.querySelector('.npc-econ-slider').value, 10);
+                    const nationVal = parseInt(card.querySelector('.npc-nation-slider').value, 10);
+                    const diploVal = parseInt(card.querySelector('.npc-diplo-slider').value, 10);
+                    const statusSpan = card.querySelector('.npc-ideology-status');
+                    if (statusSpan && typeof getIdeologyName === 'function') {
+                        statusSpan.textContent = getIdeologyName([econVal, nationVal, diploVal]);
+                    }
+                };
+
+                const prefSelect = card.querySelector('.npc-pref-select');
+                const citySelect = card.querySelector('.npc-city-select');
+                const regionDb = (typeof pref !== 'undefined') ? pref : {};
+
+                if (prefSelect && citySelect && Object.keys(regionDb).length > 0) {
+                    Object.keys(regionDb).forEach(prefName => {
+                        const option = document.createElement("option");
+                        option.value = prefName;
+                        option.textContent = prefName;
+                        prefSelect.appendChild(option);
+                    });
+
+                    const savedPref = prefSelect.getAttribute('data-selected');
+                    if (savedPref && regionDb[savedPref]) {
+                        prefSelect.value = savedPref;
+                    }
+
+                    const updateCityOptions = (selectedPref, currentCityValue = '') => {
+                        citySelect.innerHTML = '<option value="">都市を選択</option>';
+                        if (selectedPref && regionDb[selectedPref] && regionDb[selectedPref].cities) {
+                            regionDb[selectedPref].cities.forEach(cityName => {
+                                const option = document.createElement("option");
+                                option.value = cityName;
+                                option.textContent = cityName;
+                                citySelect.appendChild(option);
+                            });
+                        }
+                        if (currentCityValue) citySelect.value = currentCityValue;
+                    };
+
+                    prefSelect.addEventListener('change', async (e) => {
+                        updateCityOptions(e.target.value);
+                        await syncNpcsData();
+                    });
+
+                    citySelect.addEventListener('change', async () => {
+                        await syncNpcsData();
+                    });
+
+                    const savedCity = citySelect.getAttribute('data-selected');
+                    updateCityOptions(prefSelect.value, savedCity);
+                }
+
+                card.querySelectorAll('input, select').forEach(input => {
+                    input.addEventListener('input', async () => {
+                        updateNpcIdeology();
+                        await syncNpcsData();
+                    });
+                });
+
+                updateNpcIdeology();
+
+                const avatarInput = card.querySelector('.npc-avatar-input');
+                const avatarPreview = card.querySelector('.npc-avatar-preview');
+
+                if (avatarInput && avatarPreview) {
+                    avatarInput.addEventListener('change', (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+
+                        // FileReaderの代わりに URL.createObjectURL を使うとより高速＆軽量になります
+                        const img = new Image();
+                        img.onload = async function () {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+
+                            // 出力サイズを 64x64 に設定
+                            const targetSize = 320;
+                            canvas.width = targetSize;
+                            canvas.height = targetSize;
+
+                            // 元画像の中心から 1:1 (正方形) で切り抜くための計算
+                            let srcX = 0;
+                            let srcY = 0;
+                            let srcSize = Math.min(img.width, img.height);
+
+                            if (img.width > img.height) {
+                                // 横長画像：左右を削る
+                                srcX = (img.width - img.height) / 2;
+                            } else {
+                                // 縦長画像：上下を削る
+                                srcY = (img.height - img.width) / 2;
+                            }
+
+                            // 元画像の中央（srcSize × srcSize）を、Canvas全体（64 × 64）に引き伸ばして描画
+                            ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, targetSize, targetSize);
+
+                            // 画質 0.5 で圧縮してプレビューに反映
+                            avatarPreview.src = canvas.toDataURL('image/jpeg', 0.5);
+
+                            // 同期処理
+                            await syncNpcsData();
+
+                            // メモリ解放
+                            URL.revokeObjectURL(img.src);
+                        };
+
+                        img.src = URL.createObjectURL(file);
+                    });
+                }
+
+                if (autoSync) {
+                    syncNpcsData();
+                }
+
+            };
+
+            // F. NPC用の政党選択肢更新関数
+            window.updateNpcPartyOptions = function (specificCard = null) {
+                const partyCards = document.querySelectorAll('#partyListContainer .party-card');
+                const partyList = Array.from(partyCards).map(pc => {
+                    return {
+                        id: pc.id,
+                        name: pc.querySelector('.party-name-input')?.value || '無名の政党'
+                    };
+                });
+
+                const cardsToUpdate = specificCard ? [specificCard] : document.querySelectorAll('#npcListContainer .npc-card');
+
+                cardsToUpdate.forEach(npcCard => {
+                    const select = npcCard.querySelector('.npc-party-select');
+                    if (!select) return;
+
+                    const currentValue = select.value || select.getAttribute('data-selected') || 'none';
+                    select.innerHTML = '<option value="none">無所属</option>';
+
+                    partyList.forEach(party => {
+                        const option = document.createElement('option');
+                        option.value = party.id;
+                        option.textContent = party.name;
+                        select.appendChild(option);
+                    });
+
+                    if (Array.from(select.options).some(opt => opt.value === currentValue)) {
+                        select.value = currentValue;
+                    } else {
+                        select.value = 'none';
+                    }
+                });
+            };
+
+            // G. 一般フォーム要素の変更保存イベントの登録
+            saveElements.forEach(element => {
+                if (element.id === 'partiesData' || element.id === 'npcsData') return;
+
+                const config = sliderConfig[element.id];
+                const isChangeTarget = element.tagName === "SELECT" || element.type === "checkbox";
+                const eventType = isChangeTarget ? "change" : "input";
+
+                element.addEventListener(eventType, async () => {
+                    const valToSave = element.type === 'checkbox' ? element.checked : element.value;
+                    await setSetting(element.id, valToSave);
+
+                    if (config) {
+                        updateSliderStatus(element.value, config.statusElem, config.leftText, config.rightText);
+                    }
+
+                    refreshIdeology();
+                });
+            });
+
+            // --- H. 実際の復元処理（IndexedDBからの非同期読み込み） ---
+
+            // 1. 政党データの復元
+            try {
+                const savedParties = await db.parties.toArray();
+                if (savedParties && savedParties.length > 0) {
+                    const container = document.getElementById('partyListContainer');
+                    if (container) container.innerHTML = "";
+
+                    savedParties.forEach(partyData => {
+                        addPartyCard(partyData, false);
+                    });
+                    await syncPartiesData();
+                }
+            } catch (e) {
+                console.error("政党データの復元に失敗:", e);
+            }
+
+            // 2. NPCデータの復元
+            try {
+                const savedNpcs = await db.npcs.toArray();
+                if (savedNpcs && savedNpcs.length > 0) {
+                    const container = document.getElementById('npcListContainer');
+                    if (container) container.innerHTML = "";
+
+                    window.isRestoringNpcs = true;
+                    savedNpcs.forEach(nData => {
+                        addNpcCard(nData, false);
+                    });
+                    window.isRestoringNpcs = false;
+
+                    updateNpcPartyOptions();
+                    await syncNpcsData();
+                }
+            } catch (e) {
+                console.error("NPCデータの復元に失敗:", e);
+            }
+
+            // ボタンイベントのバインド
+            document.getElementById('addPartyBtn')?.addEventListener('click', () => {
+                addPartyCard();
+            });
+
+            document.getElementById('addNpcBtn')?.addEventListener('click', () => {
+                addNpcCard();
+            });
+
+            refreshIdeology();
+        });
+
+        // アバター画像変更イベントのバインド
+        const avatarInput = document.getElementById("avatar");
+        if (avatarInput) {
+            avatarInput.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (file) compressAndSaveAvatar(file);
+            });
+        }
+
+        // フォーム送信（ゲーム開始）処理
+        const profileForm = document.getElementById("profileForm");
+        if (profileForm) {
+            profileForm.addEventListener("submit", (e) => {
+                e.preventDefault();
+                // 最終同期を実行してから遷移
+                if (typeof syncPartiesData === 'function') syncPartiesData();
+                if (typeof syncNpcsData === 'function') syncNpcsData();
+                window.location.href = 'game.html';
+            });
+        }
+    </script>
+</body>
+
+</html>

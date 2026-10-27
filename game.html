@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <script src="https://unpkg.com/dexie@3/dist/dexie.js"></script>
+
+    <script src="script/listcountry.js"></script>
+    <script src="script/id.js"></script>
+    <script src="script/relation.js"></script>
+
+    <script src="script/party.js"></script>
+    <script src="script/house.js"></script>
+    <script src="script/senate.js"></script>
+
+    <script src="script/president.js"></script>
+    <script src="script/debug.js"></script>
+    <script src="script/market.js"></script>
+    <script src="script/kokkai.js"></script>
+    <script src="script/local.js"></script>
+    <script src="script/daihyo.js"></script>
+
+
+    <script src="script/general.js"></script>
+
+    <meta charset="UTF-8">
+    <title>POLITICAL GAME</title>
+    <style>
+        body {
+            background: #1b2431;
+            color: #f0f4ff;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px 0;
+        }
+
+        /* --- 📈 ここからゲーム本編（本部）のデザイン --- */
+        #gameMainSection {
+            margin-top: 30px;
+            background: #1d273a;
+            border-radius: 14px;
+            padding: 20px;
+            border: 2px solid #3b4a70;
+        }
+
+        /* ステータスバー（支持率やお財布）の並び */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            /* 💡 中の文字を左右にバランスよく広げる */
+            background: #252f44;
+            padding: 12px;
+
+            position: fixed;
+            /* 💡 画面に固定する */
+            top: 10px;
+            /* 💡 画面の一番上から10px下に配置 */
+            left: 50%;
+            /* 💡 画面の真ん中に持ってくるための魔法のコード(1) */
+            transform: translateX(-50%);
+            /* 💡 画面の真ん中に持ってくるための魔法のコード(2) */
+            width: min(580px, 85%);
+            /* 💡 本部画面(container)の幅からはみ出さないサイズに調整 */
+
+            border-radius: 10px;
+            font-weight: bold;
+            z-index: 100;
+            /* 💡 他の部品の裏に隠れないように一番手前に出す */
+        }
+
+
+        .status-item {
+            font-size: 1.1rem;
+        }
+
+        /* ニュース・イベントが届く黒板のようなエリア */
+        .event-box {
+            background: #00358a;
+            color: #fff;
+            border-left: 5px solid #5c8cff;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            min-height: 80px;
+            line-height: 1.6;
+        }
+
+        /* ２択の選択肢ボタン */
+        .choice-container {
+            display: flex;
+            gap: 12px;
+        }
+
+        .choice-btn {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #5c8cff;
+            background: transparent;
+            color: #5c8cff;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .choice-btn:hover {
+            background: #5c8cff;
+            color: #fff;
+        }
+
+        /* 🌟 モーダル内の「市ボックス」を横並び（グリッド）にする設定 */
+        .modal-city-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            /* 自動で綺麗に並ぶ */
+            gap: 10px;
+            max-height: 250px;
+            /* 縦に長くなりすぎたらスクロール */
+            overflow-y: auto;
+            padding: 10px 5px;
+        }
+
+        /* 🌟 モーダル内の四角い市ボックス */
+        .modal-city-box {
+            background: #f1f2f6;
+            color: #000000;
+            border: 2px solid #ced4da;
+            border-radius: 6px;
+            padding: 12px 5px;
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .modal-city-box:hover {
+            background: #3498db;
+            color: white;
+            border-color: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        /* 🔍 検索窓のデザイン */
+        .modal-search-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 2px solid #ced4da;
+            border-radius: 6px;
+            font-size: 15px;
+            box-sizing: border-box;
+        }
+
+        .modal-search-input:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+
+
+
+
+        /* 📦 汎用モーダルの背景（画面全体を暗くする） */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        /* モーダルの白い本体箱 */
+        .modal-content {
+            background: white;
+            color: #333;
+            padding: 25px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        /* モーダル内に並ぶボタンの調整 */
+        .modal-city-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .modal-city-btn:hover {
+            background: #e2e6ea;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        /* 🌟 モーダル内の「都道府県ボックス」用のグリッド設定 */
+        .modal-pref-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            /* 市より少し大きめ */
+            gap: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 10px 5px;
+        }
+
+        /* 🌟 モーダル内の四角い都道府県ボックス */
+        .modal-pref-box {
+            background: #2c3e50;
+            color: white;
+            border: 2px solid #34495e;
+            border-radius: 8px;
+            padding: 15px 5px;
+            font-size: 15px;
+            font-weight: bold;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .modal-pref-box:hover {
+            background: #e67e22;
+            /* 選択中っぽくオレンジに光らせる演出 */
+            border-color: #d35400;
+            transform: translateY(-2px);
+        }
+
+        /* ライバルの個別ミニカード */
+        .npc-info-card {
+            background: #2d3748;
+            border: 1px solid #4a5568;
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 12px;
+            color: #e2e8f0;
+            line-height: 1.4;
+        }
+
+        /* 思想のパラメーターをちっちゃく見せるバッジ */
+        .ideology-badge {
+            display: inline-block;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 10px;
+            background: #4a5568;
+            margin-right: 3px;
+            margin-top: 4px;
+        }
+
+        /* 👑 就任式モーダル専用のアニメーション */
+        @keyframes inaugurationFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        @keyframes flashLight {
+
+            0%,
+            100% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+        }
+
+        @keyframes confettiFall {
+            0% {
+                transform: translateY(-20px) rotate(0deg);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(100vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        .inauguration-card {
+            animation: inaugurationFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            background: linear-gradient(-45deg, #1a202c, #2d3748, #111c24, #1a202c);
+            background-size: 400% 400%;
+            animation: flashLight 15s ease infinite;
+        }
+
+        /* 🎺 音楽演奏や拍手を表現する音符・紙吹雪エフェクト */
+        .celebration-particle {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            animation: confettiFall 4s linear forwards;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 📈 ステータス表示（現在の状況） -->
+    <div class="status-bar">
+        <div class="status-item">📅 時期:<span id="gameTurn" style="color:#5c8cff;"></span></div>
+        <div class="status-item">📊 XP:<span id="xp" style="color:#48bb78;">0</span></div>
+        <div class="status-item">💰 資金:<span id="money" style="color:#ecc94b;">1000</span>円</div>
+    </div>
+
+    <!-- 🕵️‍♂️ ライバルNPCの動向チェックエリア -->
+    <div class="npc-monitor-panel"
+        style="background: #1a202c; border: 2px solid #4a5568; border-radius: 8px; padding: 15px; margin: 20px 0; color: white;">
+        <h4 style="margin: 0 0 10px 0; color: #a0aec0; font-size: 0.9rem; text-align: center;">全国地図</h4>
+
+        <!-- 県を切り替えるタブ -->
+        <div id="npcPrefTabs"
+            style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px;"></div>
+
+        <!-- 🌟【追加】選んだ県の中にある「市」のボックスが並ぶエリア -->
+        <div id="npcCityTabs" class="modal-city-grid"
+            style="grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-bottom: 15px; display: none;">
+            <!-- ここに市の選択ボックスが並びます -->
+        </div>
+
+        <!-- 選んだ市にいるNPCの一覧カードが並ぶエリア -->
+        <div id="npcListArea" class="modal-city-grid"
+            style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); max-height: 200px;">
+            <div style="color: #718096; text-align: center; width: 100%; grid-column: 1/-1; padding: 20px;">
+                上のタブを押して、さらに市を選択してください。</div>
+        </div>
+    </div>
+
+    <div class="turn-control-panel" style="text-align: center; margin-top: 30px;">
+        <button type="button" id="nextTurnBtn"
+            style="width: 100%; padding: 20px; background: #ed8936; color: white; border: none; border-radius: 8px; font-size: 1.3rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            💼 次のターン（1ヶ月進める）
+        </button>
+        <div class="control-panel">
+            <button id="start-auto-btn" onclick="startAutoTurn()">自動進行スタート（始める）</button>
+            <button id="stop-auto-btn" onclick="stopAutoTurn()" disabled>一時停止（止める）</button>
+        </div>
+        <hr />
+        <div
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-bottom: 10px;">
+            <!-- 🏛️ 追加：国会議員検索ボタン -->
+            <button type="button" onclick="npccardview(player)"
+                style="width: 100%; padding: 20px; background: #ffffff; color: rgb(0, 0, 0); border: none; border-radius: 8px; font-size: 1.3rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                自分のプロフィール
+            </button>
+            <button type="button" onclick="showNpcSearchModal()"
+                style="width: 100%; padding: 20px; background: #ffffff; color: rgb(0, 0, 0); border: none; border-radius: 8px; font-size: 1.3rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                国民検索
+            </button>
+            <button type="button" onclick="openstockmarketModal()"
+                style="width: 100%; padding: 20px; background: #ffffff; color: rgb(0, 0, 0); border: none; border-radius: 8px; font-size: 1.3rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                株を見る
+            </button>
+            <button type="button" onclick="openJobModal()"
+                style="width: 100%; padding: 20px; background: #ffffff; color: rgb(0, 0, 0); border: none; border-radius: 8px; font-size: 1.3rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                仕事する
+            </button>
+        </div>
+        <div
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-bottom: 10px;">
+            <button type="button" onclick="showPartyListModal()"
+                style="width: 100%; padding: 20px; background: #ffffff; color: rgb(0, 0, 0); border: none; border-radius: 8px; font-size: 1.3rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                政党メニュー
+            </button>
+            <button type="button" onclick="openDietMemberSearchModal()"
+                style="width: 100%; padding: 20px; background: #ffffff; color: rgb(0, 0, 0); border: none; border-radius: 8px; font-size: 1.3rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                国会議員検索
+            </button>
+            <button type="button" onclick="openElectionWikiModal()"
+                style="width: 100%; padding: 20px; background: #ffffff; color: rgb(0, 0, 0); border: none; border-radius: 8px; font-size: 1.3rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                歴代下院選挙
+            </button>
+            <button type="button" onclick="openSenateWikiModal()"
+                style="width: 100%; padding: 20px; background: #ffffff; color: rgb(0, 0, 0); border: none; border-radius: 8px; font-size: 1.3rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                歴代上院選挙
+            </button>
+            <button type="button" onclick="showWikiArchiveUI()"
+                style="width: 100%; padding: 20px; background: #ffffff; color: rgb(0, 0, 0); border: none; border-radius: 8px; font-size: 1.3rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                歴代大統領選挙
+            </button>
+        </div>
+
+        <!-- 縦並びボタンエリア（隙間あけるために flex + gap で整理） -->
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button type="button" onclick="showPresidentApprovalModal()"
+                style="width: 100%; padding: 20px; background: #ffffff; color: rgb(0, 0, 0); border: none; border-radius: 8px; font-size: 1.3rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                大統領の支持率
+            </button>
+            <button type="button" onclick="showGraveyardViewer()"
+                style="width: 100%; padding: 20px; background: #ffffff; color: rgb(0, 0, 0); border: none; border-radius: 8px; font-size: 1.3rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                墓地を見る
+            </button>
+
+        </div>
+
+
+    </div>
+
+    <!-- 📦 汎用モーダル（HTMLのいちばん下あたりに置いておく） -->
+    <div id="genericModal" class="modal-overlay"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center;">
+
+        <!-- 💡 modal-content に最大高さとスクロールを指定 -->
+        <div class="modal-content" style="background: #fff; color: #000; padding: 20px; border-radius: 8px; width: 90%; max-width: 500px; display: flex; flex-direction: column; 
+        /* 🚨 ここが超重要！画面の高さ80%を上限にし、超えたら縦スクロールさせる */
+        max-height: 80vh; overflow-y: auto;">
+
+            <h3 id="modalTitle"
+                style="margin-top: 0; margin-bottom: 10px; border-bottom: 1px solid #4a5568; padding-bottom: 8px; font-size: 18px;">
+                タイトル</h3>
+            <div id="modalHeaderImgContainer"></div>
+
+            <!-- 💡 ボディ部分にも隙間調整を入れる -->
+            <div id="modalBody" style="flex: 1; font-size: 14px; line-height: 1.6; margin-bottom: 15px;">
+                ここにお知らせ文字や、選択ボタンが動的に入ります
+            </div>
+
+            <div class="modal-actions" id="modalActions"
+                style="display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid #4a5568; padding-top: 10px; align-items:center;">
+                <!-- 閉じたり決定したりするボタンが動的に入るエリア -->
+            </div>
+        </div>
+    </div>
+
+
+    <!-- 💡 iPhone風の通知バナーが上から順番に溜まっていく透明な固定コンテナ -->
+    <div id="notificationTrayContainer" style="
+    position: fixed; 
+    top: 20px; 
+    right: 20px; 
+    width: 350px; 
+    max-height: 80vh; 
+    overflow-y: auto; 
+    z-index: 10000; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 10px; 
+    pointer-events: none; 
+    font-family: sans-serif;
+    /* 👇 スクロールバーを非表示にする魔法のコード */
+    scrollbar-width: none; /* Firefox用 */
+    -ms-overflow-style: none; /* IE/Edge用 */
+">
+        <!-- Chrome, Safari用（インラインでは書けないため、別途CSSかstyleタグが必要） -->
+        <style>
+            #notificationTrayContainer::-webkit-scrollbar {
+                display: none;
+            }
+        </style>
+    </div>
+
+    <!-- 推薦候補選択モーダル -->
+    <div id="endorsement-modal"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center; font-family: sans-serif;">
+        <div
+            style="background: #222; color: #fff; width: 90%; max-width: 500px; padding: 25px; border-radius: 10px; border: 2px solid #444; box-shadow: 0 0 15px rgba(0,0,0,0.5);">
+
+            <h3
+                style="margin-top: 0; color: #ffca28; border-bottom: 2px solid #444; padding-bottom: 10px; text-align: center;">
+                🤝 推薦候補の選択
+            </h3>
+
+            <p style="font-size: 14px; color: #ccc; line-height: 1.5; margin-bottom: 20px;">
+                我が党からの公式候補者が出馬していないため、他陣営の候補者を推薦して影響力を示すことができます。<br>
+                <span style="color: #ff8a80;">※推薦した候補者には、我が党の支持層の票が流れやすくなります。</span>
+            </p>
+
+            <!-- 候補者カードが動的に追加されるエリア -->
+            <div id="candidate-list-container"
+                style="max-height: 250px; overflow-y: auto; margin-bottom: 20px; padding-right: 5px;">
+                <!-- ここにJSでカードが生成される -->
+            </div>
+
+            <!-- 誰も推薦しない場合のボタン -->
+            <button id="btn-no-endorsement"
+                style="width: 100%; padding: 12px; background: #444; color: #fff; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px; transition: background 0.2s;">
+                今回は誰も推薦しない（自主投票）
+            </button>
+
+        </div>
+    </div>
+
+
+
+</body>
+<script>
+    const cityToDistrictMap = {};
+    const SenateMap = {};
+
+    let currentTurn = 1;
+    let gameDate = "1848-1-1"; // 日付の変数名がgameDataだと下のデータと被るのでgameDateに修正
+
+    let player = {};
+    let iselection = false;
+    function updateStatusUI() {
+        const y = gameDate.getFullYear();
+        const m = String(gameDate.getMonth() + 1).padStart(2, '0');
+        const d = String(gameDate.getDate()).padStart(2, '0');
+
+        // 💡 「年月日」をすべて表示し、現在のターン数も合わせて見せることで進捗を分かりやすくします！
+        document.getElementById("gameTurn").textContent = `${y}年${m}月${d}日`;
+        document.getElementById("xp").textContent = `${player.xp}`;
+        document.getElementById("money").textContent = `${player.money}`;
+
+        // 🤖 NPCのステータス画面（モニター）もリアルタイムで更新
+        initNPCMonitorUI();
+    }
+
+    function initNPCMonitorUI() {
+        const tabsContainer = document.getElementById("npcPrefTabs");
+        tabsContainer.innerHTML = "";
+
+        const countryKey = localStorage.getItem("poligame_data") ? JSON.parse(localStorage.getItem("poligame_data")).countrySelect || "jp" : "jp";
+        const prefNames = Object.keys(country[countryKey].pref);
+
+        prefNames.forEach(prefName => {
+            const tab = document.createElement("button");
+            tab.type = "button";
+            tab.className = "modal-city-box";
+            tab.style.padding = "6px 12px";
+            tab.style.fontSize = "12px";
+            tab.style.margin = "0";
+            tab.style.whiteSpace = "nowrap";
+
+            const count = npcs.filter(n => n.pref === prefName).length;
+            tab.innerHTML = `${prefName} <span style="color:#ed8936;">(${count})</span>`;
+
+            tab.addEventListener("click", () => {
+                tabsContainer.querySelectorAll("button").forEach(b => {
+                    b.style.background = "#f1f2f6";
+                    b.style.color = "#2c3e50";
+                });
+                tab.style.background = "#3182ce";
+                tab.style.color = "white";
+
+                // 🥩 いきなり出さずに「市」のセレクト画面へ進む！
+                renderCityTabs(prefName);
+            });
+
+            tabsContainer.appendChild(tab);
+        });
+    }
+
+    // 🌟 修正2: 選んだ県に所属する「市ボックス」を組み立てる関数
+    function renderCityTabs(prefName) {
+        const cityTabsContainer = document.getElementById("npcCityTabs");
+        const listArea = document.getElementById("npcListArea");
+
+        cityTabsContainer.innerHTML = ""; // 初期化
+        cityTabsContainer.style.display = "grid"; // 表示する
+
+        listArea.innerHTML = `<div style="color: #718096; text-align: center; width: 100%; grid-column: 1/-1; padding: 10px;">👉 調べたい『市』のボックスを選択してください。</div>`;
+
+        // 国データからその県にある市のリストを取得
+        const countryKey = localStorage.getItem("poligame_data") ? JSON.parse(localStorage.getItem("poligame_data")).countrySelect || "jp" : "jp";
+        const citiesInPref = country[countryKey].pref[prefName].cities;
+
+        citiesInPref.forEach(cityName => {
+            // その市に何人のNPCが潜伏しているかをカウント
+            const npcCountInCity = npcs.filter(n => n.pref === prefName && n.city === cityName).length;
+
+            const cityBox = document.createElement("div");
+            cityBox.className = "modal-city-box";
+            cityBox.style.padding = "8px 5px";
+            cityBox.style.fontSize = "13px";
+            cityBox.innerHTML = `<div>${cityName}</div><small style="color:#ed8936; font-weight:bold;">${npcCountInCity}人</small>`;
+
+            // 市ボックスがクリックされたら、ようやくお肉（その市のNPC名簿）を焼き始める！
+            cityBox.addEventListener("click", () => {
+                cityTabsContainer.querySelectorAll(".modal-city-box").forEach(b => {
+                    b.style.background = "#f1f2f6";
+                    b.style.color = "#2c3e50";
+                });
+                cityBox.style.background = "#e67e22"; // 選択された市をオレンジに光らせる
+                cityBox.style.color = "white";
+
+                // ピンポイントでこの市のNPC一覧を表示！
+                renderNPCList(prefName, cityName);
+            });
+
+            cityTabsContainer.appendChild(cityBox);
+        });
+    }
+
+
+    // 🌟 修正3: 引数に cityName を追加し、その市だけのNPCを綺麗に出す
+    function renderNPCList(prefName, cityName) {
+        const listArea = document.getElementById("npcListArea");
+        listArea.innerHTML = "";
+
+        // 💡 県だけでなく「市」でもばっちりフィルターをかける！
+        const localNpcs = npcs.filter(n => n.pref === prefName && n.city === cityName);
+
+        if (localNpcs.length === 0) {
+            listArea.innerHTML = `<div style="color: #718096; text-align: center; width: 100%; padding: 20px;">この地域には人物がいません。</div>`;
+            return;
+        }
+
+        localNpcs.forEach(npc => {
+            const card = document.createElement("div");
+            card.className = "npc-info-card";
+
+            // 既存のgetIdeologyName関数を使って総合スタンスを取得
+            const ideo = getIdeologyName(npc.ideology);
+            let partyBadgeHTML = "";
+
+            if (npc.partyId && parties[npc.partyId]) {
+                // 所属政党がある場合（政党の色と名前を反映）
+                const party = parties[npc.partyId];
+                partyBadgeHTML = `
+                    <span style="
+                        background-color: ${party.color || '#4a5568'}; 
+                        color: #fff; 
+                        padding: 2px 8px; 
+                        border-radius: 4px; 
+                        font-size: 11px; 
+                        font-weight: bold;
+                        display: inline-block;
+                        margin-left: 8px;
+                        vertical-align: middle;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                    ">${party.name}</span>
+                `;
+            } else {
+                // 無所属の場合
+                partyBadgeHTML = `
+                    <span style="
+                        background-color: #718096; 
+                        color: #e2e8f0; 
+                        padding: 2px 8px; 
+                        border-radius: 4px; 
+                        font-size: 11px; 
+                        font-weight: bold;
+                        display: inline-block;
+                        margin-left: 8px;
+                        vertical-align: middle;
+                    ">無所属</span>
+                `;
+            }
+            card.innerHTML = `
+                        <img src="${npc.icon}" width=50px height=50px><div style="font-weight: bold; color: #fff; font-size: 14px; margin-bottom: 4px;">${npc.name}</div>${partyBadgeHTML}
+            <div style="color: #ecc94b; font-weight: bold;">📍 拠点: ${npc.city}</div>
+            <div style="color: #48bb78;">💰 資金: ${Math.floor(npc.money).toLocaleString()}円</div>
+            <div style="margin-top: 6px; border-top: 1px solid #4a5568; padding-top: 4px;">
+                <span class="ideology-badge" style="color:#fc8181; display:block; margin-bottom:4px; text-align:center;">総合: ${ideo}</span>
+                <div style="display:flex; justify-content:space-between;">
+                    <span class="ideology-badge" style="color:#fc8181; flex:1; text-align:center;">経:${npc.ideology[0]}</span>
+                    <span class="ideology-badge" style="color:#63b3ed; flex:1; text-align:center;">国:${npc.ideology[1]}</span>
+                    <span class="ideology-badge" style="color:#ecc94b; flex:1; text-align:center;">外:${npc.ideology[2]}</span>
+                </div>
+            </div>
+        `;
+
+
+            // 【改善】クリックできることが分かるようにカーソルをポインタに変更
+            card.style.cursor = "pointer";
+
+            // 【追加】カードクリックで詳細プロフィールモーダルを開く
+            card.addEventListener("click", () => {
+                npccardview(npc);
+            });
+
+            listArea.appendChild(card);
+
+
+        });
+    }
+
+
+    // 🔄 「次のターン（1ヶ月進める）」ボタンが押されたときのイベント
+    document.getElementById("nextTurnBtn").addEventListener("click", async () => {
+        turnmove();
+
+    });
+
+    let dt = {};
+
+    let mode = null;
+    let senate_enable = true;
+    let senkyonin = false;
+    let twoparty = false;
+    let hirei_house = true;
+    let hirei_senate = true;
+    let vicepresident_mode = false;
+    let totalHouseSeats = 0;
+    let totalSenateSeats = 0;
+    window.onload = async function () {
+
+        const db = new Dexie("PoligameDB");
+        db.version(1).stores({
+            settings: 'id',
+            parties: 'id',
+            npcs: 'id'
+        });
+
+        // グローバル変数として dt を用意
+
+        // IndexedDBから各データを取得
+        const settingsList = await db.settings.toArray();
+        const partiesList = await db.parties.toArray();
+        const npcsList = await db.npcs.toArray();
+
+        // データが一切保存されていない場合は警告を出して戻す
+        if (settingsList.length === 0 && partiesList.length === 0 && npcsList.length === 0) {
+            alert("データが定義されていません。");
+            window.location.href = 'index.html';
+            return; // 処理をストップ
+        }
+
+        // 1. settings のキーバリュー構造を元に戻す
+        settingsList.forEach(item => {
+            dt[item.id] = item.value;
+        });
+
+        // 2. 政党データを配列として格納
+        dt.parties = partiesList;
+
+        // 3. NPCデータを配列として格納
+        dt.npcs = npcsList;
+        // 💡 文字列（JSON）をJavaScriptのオブジェクト「{}」に変換する！
+
+        console.log(dt); // これで中身が綺麗に見えるよ
+        console.log("ゲームを始めます");
+
+        // 💡 index.html側から渡ってきた初期値を使ってセット
+        // もしデータが空だった時のためのデフォルト値（|| 1848など）も添えておくと安全！
+        gameDate = new Date(`${dt.startYear}-01-01`);
+        mode = dt.do || "pr"
+        if (mode === "pr") {
+            vicepresident_mode = dt.vicepresident || false;
+        }
+        player = {
+            id: "player",
+            icon: dt.avatar || dt.avatarUrl,
+            name: dt.playerName || "不明",
+            partyId: null,
+            job: dt.class || "無職",
+            ideology: [
+                parseInt(dt.econ || 50),
+                parseInt(dt.nation || 50),
+                parseInt(dt.diplomacy || 50)
+            ],
+            history: [],
+            isPlayer: true,
+            money: 100,
+            xp: 0,
+
+        };
+        if (dt.kachi === true) {
+            senkyonin = true
+        }
+        if (dt.twopartysys === true) {
+            twoparty = true
+        }
+        if (dt.senate === false) {
+            senate_enable = false;
+        }
+        totalHouseSeats = dt.giseki ?? 465;
+        totalSenateSeats = dt.senategiseki ?? 248
+        hirei_house = dt.kainhirei ?? true;
+        // 1. ローカルストレージから国キーを取得
+        const countryKey = localStorage.getItem("poligame_data")
+            ? JSON.parse(localStorage.getItem("poligame_data")).countrySelect || "jp"
+            : "jp";
+
+        // 2. 選択された国のデータを取得
+        const currentCountryData = country[countryKey];
+        stockmarket = currentCountryData.market || [];
+
+        // 3. 国データ内にある都道府県データを参照（※データ構造に合わせる）
+        // 例として currentCountryData.prefs に入っていると仮定します。環境に合わせて調整してください。
+        const prefData = currentCountryData.pref || {};
+
+        // 4. 区割りマップの自動生成
+
+
+        // 1. 【超高速】有権者の生きた人口動態から自動区割りマップを生成
+
+        // 県ごとに「実在する有権者の町リスト（重複なし）」を高速で吸い上げる
+        const prefCitiesSet = {};
+        const totalVotersCount = allVoters.length;
+
+        for (let v = 0; v < totalVotersCount; v++) {
+            const voter = allVoters[v];
+            if (!voter.pref || !voter.city) continue;
+
+            if (!prefCitiesSet[voter.pref]) {
+                prefCitiesSet[voter.pref] = new Set();
+            }
+            prefCitiesSet[voter.pref].add(voter.city);
+        }
+
+        let TOTAL_SINGLE_SEATS = Math.round(totalHouseSeats * 0.62); // 465なら289
+        let TOTAL_SENATE_SEATS = totalSenateSeats
+        if (!hirei_house) {
+            TOTAL_SINGLE_SEATS = totalHouseSeats;
+
+        }
+
+        // 2. 人口比で各都道府県の区数を決定＆カウント
+        // 2. 人口比で各都道府県の区数を決定＆カウント
+        let totalDistrictCount = 0;
+        for (const prefName in prefData) {
+            const pInfo = prefData[prefName];
+            if (!pInfo) continue;
+
+            const districtCount = Math.max(1, Math.round((pInfo.pop / 100) * TOTAL_SINGLE_SEATS));
+            totalDistrictCount += districtCount;
+
+            const cityList = prefCitiesSet[prefName]
+                ? Array.from(prefCitiesSet[prefName])
+                : (pInfo.cities || ["中心街"]);
+
+            cityToDistrictMap[prefName] = {};
+
+            // 💡【修正】街をベースに上書きループするのをやめる！
+            // すべての街に対して、1からdistrictCountの範囲を順番に、絶対に上書きしないように割り振る
+            cityList.forEach((cityName, index) => {
+                cityToDistrictMap[prefName][cityName] = (index % districtCount) + 1;
+            });
+        }
+        if (senate_enable) {
+
+            // 2. 人口比で各都道府県の「定数（議席数）」を決定＆カウント
+            let totalSenateDistrictSeats = 0; // 選挙区の総定数カウント
+
+            // 💡 今回の選挙で選ぶ「改選議席数」（248の半分＝124）を基準にする
+            // 💡 1. ユーザー設定の総議席の「半分（半数改選）」をターゲットにする
+            const electionSeatsTarget = TOTAL_SENATE_SEATS / 2; // 248なら124
+
+            // 💡 2. 人口比の合計（分母）を動的に計算
+            let totalPopulationDenominator = 0;
+            for (const prefName in prefData) {
+                if (prefData[prefName]) {
+                    totalPopulationDenominator += (prefData[prefName].pop || 0);
+                }
+            }
+            if (totalPopulationDenominator === 0) totalPopulationDenominator = 100;
+
+
+            // 💡【追加】端数調整用に、一番定数が大きい（人口が多い）州を自動で記録する変数
+            let largestPrefName = null;
+            let maxPrefSeatsFound = -1;
+
+            for (const prefName in prefData) {
+                const pInfo = prefData[prefName];
+                if (!pInfo) continue;
+
+                const prefSeats = Math.max(1, Math.round((pInfo.pop / totalPopulationDenominator) * electionSeatsTarget));
+                totalSenateDistrictSeats += prefSeats;
+
+                // 🔥【動的判定】ループの中で、一番定数が大きい州を自動で探す
+                if (prefSeats > maxPrefSeatsFound) {
+                    maxPrefSeatsFound = prefSeats;
+                    largestPrefName = prefName;
+                }
+
+                const cityList = prefCitiesSet[prefName]
+                    ? Array.from(prefCitiesSet[prefName])
+                    : (pInfo.cities || ["中心街"]);
+
+                SenateMap[prefName] = {};
+
+                cityList.forEach((cityName) => {
+                    SenateMap[prefName][cityName] = {
+                        districtName: `${prefName}選挙`,
+                        seats: prefSeats
+                    };
+                });
+            }
+
+            // 💡 3. 【汎用補正】四捨五入の端数でズレが出た場合、自動検出した最大州で帳尻を合わせる
+            const seatDifference = electionSeatsTarget - totalSenateDistrictSeats;
+            if (seatDifference !== 0 && largestPrefName && SenateMap[largestPrefName]) {
+                for (const city in SenateMap[largestPrefName]) {
+                    SenateMap[largestPrefName][city].seats += seatDifference;
+                }
+                totalSenateDistrictSeats += seatDifference;
+                console.log(`【システム補正】端数を最大選挙区（${largestPrefName}）で調整しました。現在の選挙区総定数: ${totalSenateDistrictSeats}`);
+            }
+
+        }
+
+        if (hirei_house) {
+            initPRBlocks(countryKey, getRandomRange(2, 8));
+
+            // 3. 黄金比で計算された小選挙区数を渡して比例議席を決定！
+            calculatePRBlockSeats(countryKey, totalDistrictCount, totalHouseSeats);
+        }
+        loadCountryData(dt.countrySelect || "jp");
+
+        startLocationSelection();
+        generateNPCCandidates();
+
+        // --- ここまで前日譚処理 ---
+
+
+
+        console.log("プレイヤー情報:", player);
+    };
+
+    // 🌐 グローバル変数
+    let globalPRBlocks = [];
+    // 構造例:
+    // [
+    //   { name: "北海道ブロック", prefs: ["北海道", "青森県", "岩手県", "宮城県", "秋田県"] },
+    //   { name: "東京都ブロック", prefs: ["埼玉県", "千葉県", "東京都", "神奈川県", "新潟県"] },
+    //   ...
+    // ]
+
+    let globalPRBlockMap = {}; // 都道府県名 -> ブロックオブジェクト への高速参照用
+    let prseats = 0;
+    // 🌐 総議席200（小選挙区 ＋ 比例）ジャスト配分関数
+    function calculatePRBlockSeats(countryKey, totalDistrictSeats, total) {
+        const currentCountryData = country[countryKey];
+        if (!currentCountryData || !currentCountryData.pref || globalPRBlocks.length === 0) return;
+
+        const prefData = currentCountryData.pref;
+
+        // 全体の目標総議席数
+        const TARGET_TOTAL_HOUSE_SEATS = total ?? 465;
+
+        // ★ 比例にあてる総議席数を算出（例: 200 - 117 = 83議席）
+        const totalPRSeats = Math.max(0, TARGET_TOTAL_HOUSE_SEATS - totalDistrictSeats);
+        prseats = totalPRSeats
+        // 1. 全国の総人口を計算
+        let totalCountryPop = 0;
+        globalPRBlocks.forEach(block => {
+            block.pop = block.prefs.reduce((sum, prefName) => {
+                return sum + (prefData[prefName]?.pop || 0);
+            }, 0);
+            totalCountryPop += block.pop;
+        });
+
+        if (totalCountryPop === 0) return;
+
+        // 2. 人口比で各ブロックに配分（四捨五入ベース＋合計ジャスト調整）
+        let assignedSeatsSum = 0;
+        globalPRBlocks.forEach(block => {
+            const exactSeats = (block.pop / totalCountryPop) * totalPRSeats;
+
+            // 四捨五入で基本枠を決定（最低1議席は保証）
+            block.seats = Math.max(1, Math.round(exactSeats));
+
+            // 四捨五入の誤差（端数）を保持
+            block.diff = exactSeats - block.seats;
+            assignedSeatsSum += block.seats;
+        });
+
+        // 3. 四捨五入のズレで比例合計がズレた場合、端数が大きい/小さい順に1議席ずつ微調整
+        let diffSeats = totalPRSeats - assignedSeatsSum;
+
+        if (diffSeats > 0) {
+            // 議席が足りない場合：切り捨てられた（diffが大きい）順に1議席追加
+            const sorted = [...globalPRBlocks].sort((a, b) => b.diff - a.diff);
+            for (let i = 0; i < diffSeats; i++) sorted[i].seats += 1;
+        } else if (diffSeats < 0) {
+            // 議席が溢れた場合：切り上げられた（diffが小さい）順に1議席削減（1議席未満にはしない）
+            const sorted = [...globalPRBlocks].sort((a, b) => a.diff - b.diff);
+            let count = 0;
+            for (let i = 0; i < sorted.length && count < Math.abs(diffSeats); i++) {
+                if (sorted[i].seats > 1) {
+                    sorted[i].seats -= 1;
+                    count++;
+                }
+            }
+        }
+
+        // 検証ログ
+        const finalPRSeats = globalPRBlocks.reduce((s, b) => s + b.seats, 0);
+        console.log(`🏛️ 【総議席200】 小選挙区: ${totalDistrictSeats} ＋ 比例: ${finalPRSeats} ＝ 計 ${totalDistrictSeats + finalPRSeats} 議席`);
+        globalPRBlocks.forEach(b => console.log(`  ・${b.name}: 比例 ${b.seats} 議席`));
+    }
+
+    /**
+     * 🌐 比例代表ブロック定義の初期化関数（完全ランダム・汎用版）
+     * @param {string} countryKey - 国識別キー
+     * @param {number} numBlocks - 作成したい比例ブロックの数（デフォルト 8）
+     */
+    function initPRBlocks(countryKey, numBlocks = 8) {
+        const currentCountryData = country[countryKey];
+        if (!currentCountryData || !currentCountryData.pref) {
+            console.error(`❌ initPRBlocks: 国データ (${countryKey}) が存在しないか、pref がありません。`);
+            return;
+        }
+
+        const prefData = currentCountryData.pref;
+        const allPrefNames = Object.keys(prefData);
+
+        if (allPrefNames.length === 0) return;
+
+        // 1. 都道府県（地域）リストをフィッシャー–イェーツ法で完全にランダムシャッフル
+        const shuffledPrefs = [...allPrefNames];
+        for (let i = shuffledPrefs.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffledPrefs[i], shuffledPrefs[j]] = [shuffledPrefs[j], shuffledPrefs[i]];
+        }
+
+        // 地域数がブロック数より少ない場合は、地域数に合わせる
+        const actualNumBlocks = Math.min(numBlocks, shuffledPrefs.length);
+
+        // 2. シャッフルした地域をグループ分け（均等に分配）
+        const rawBlockGroups = Array.from({ length: actualNumBlocks }, () => []);
+        shuffledPrefs.forEach((prefName, index) => {
+            const groupIndex = index % actualNumBlocks;
+            rawBlockGroups[groupIndex].push(prefName);
+        });
+
+        // 3. 各グループ内で「人口(pop)が最大の地域」を探してブロック名にする
+        globalPRBlocks = rawBlockGroups.map(prefs => {
+            let maxPop = -1;
+            let topPrefName = prefs[0] || "地域";
+
+            prefs.forEach(pName => {
+                const pop = prefData[pName]?.pop || 0;
+                if (pop > maxPop) {
+                    maxPop = pop;
+                    topPrefName = pName;
+                }
+            });
+
+            return {
+                name: `${topPrefName}ブロック`, // 一番人口が多い地域を代表名にする！
+                prefs: prefs,
+                pop: 0,
+                seats: 0,
+                diff: 0
+            };
+        });
+
+        // 4. 高速参照用マップ (globalPRBlockMap) を更新
+        globalPRBlockMap = {};
+        globalPRBlocks.forEach(block => {
+            block.prefs.forEach(pName => {
+                globalPRBlockMap[pName] = block;
+            });
+        });
+
+        console.log(`🎲 ランダム比例ブロック生成完了 [${countryKey}]: ${globalPRBlocks.length} ブロック`);
+        globalPRBlocks.forEach(b => console.log(`  ・${b.name}: 構成地域 -> [${b.prefs.join(", ")}]`));
+    }
+
+
+
+    const allVoters = [];
+    let voterIdCounter = 1;
+    const npcs = [];
+
+
+
+
+    // 指定した範囲（min 〜 max）のランダムな整数を返すヘルパー関数
+    function getRandomRange(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+    function loadCountryData(countryCode) {
+        const selectedCountry = country[countryCode];
+        if (!selectedCountry) return;
+
+        console.log(`【ロード中】 ${selectedCountry.name}`);
+
+        const prefNames = Object.keys(selectedCountry.pref);
+
+        // 1. 全県のpopの合計値を計算
+        let totalPopInCountry = 0;
+        prefNames.forEach(prefName => {
+            totalPopInCountry += selectedCountry.pref[prefName].pop || 0;
+        });
+        console.log(`📊 補正前の元データ合計pop: ${totalPopInCountry}%`);
+        prefNames.forEach(prefName => {
+            const prefecture = selectedCountry.pref[prefName];
+
+            // 🌟 人口比率の計算
+            let adjustedPop = prefecture.pop;
+            if (totalPopInCountry > 0 && totalPopInCountry !== 100) {
+                adjustedPop = Math.round((prefecture.pop / totalPopInCountry) * 100);
+            }
+
+            // 🚀 この県が作るべき小選挙区の数を算出
+            const TOTAL_SINGLE_SEATS = Math.round(totalHouseSeats * 0.62);
+            const districtCount = Math.max(1, Math.round((adjustedPop / 100) * TOTAL_SINGLE_SEATS));
+
+            const minPeople = 200;
+            const maxPeople = Math.max(30, Math.min(800, Math.floor(adjustedPop * 3)));
+            const voterCount = getRandomRange(minPeople, maxPeople);
+
+            console.log(`--- ${prefName} (人口比率: ${adjustedPop}% / 生成Voter: ${voterCount}グループ / 区数: ${districtCount}) ---`);
+
+            const isUrbanArea = adjustedPop >= 5;
+            let stateVoterIndex = 0; // 👈 ここで0に初期化されているのを利用する
+
+            prefecture.cities.forEach((cityName, cityIndex) => {
+                for (let i = 0; i < voterCount; i++) {
+                    const voterId = `voter-${voterIdCounter++}`;
+
+                    const basePower = getRandomRange(10000, 500000);
+
+                    // 💡 【修正ポイント1】投票力（票数）が 0 やマイナスにならないよう最低1000票を保証！
+                    const rawPower = Math.floor(basePower * (adjustedPop / 100));
+                    const finalVotePower = Math.max(1000, rawPower);
+
+                    // 🧠 思想パラメータ生成...
+                    let econ = getRandomRange(10, 90);
+                    let nation = getRandomRange(10, 90);
+                    let diplomacy = getRandomRange(10, 90);
+
+                    if (isUrbanArea) {
+                        if (Math.random() < 0.51) {
+                            econ = getRandomRange(5, 44);
+                            nation = getRandomRange(1, 49);
+                        }
+                    } else {
+                        if (Math.random() < 0.53) {
+                            nation = getRandomRange(55, 95);
+                            diplomacy = getRandomRange(55, 95);
+                        }
+                    }
+
+                    const statusArray = [econ, nation, diplomacy];
+
+                    const newVoter = new Voter(voterId, prefName, cityName, finalVotePower, "一般", statusArray);
+
+                    const dynamicDistrict = (stateVoterIndex % districtCount) + 1;
+                    stateVoterIndex++; // 👈 1人作るたびにカウントアップ！
+                    newVoter.district = dynamicDistrict;
+                    newVoter.districtName = `${prefName} 第${newVoter.district}区`;
+
+                    allVoters.push(newVoter);
+                }
+            });
+
+            // 2. 補欠Voterの生成
+            if (adjustedPop < 100) {
+                const backupCount = getRandomRange(10, 30);
+                for (let i = 0; i < backupCount; i++) {
+                    const voterId = `voter-${voterIdCounter++}`;
+                    const basePower = getRandomRange(500, 1500);
+
+                    // 💡 補欠側も最低100票保証！
+                    const rawPower = Math.floor(basePower * (adjustedPop / 100));
+                    const finalVotePower = Math.max(100, rawPower);
+
+                    const fallbackCity = prefecture.cities[Math.floor(Math.random() * prefecture.cities.length)] || "その他地域";
+
+                    const backupVoter = new Voter(voterId, prefName, fallbackCity, finalVotePower, "補欠");
+
+                    backupVoter.district = Math.floor(Math.random() * districtCount) + 1;
+                    backupVoter.districtName = `${prefName} 第${backupVoter.district}区`;
+
+                    allVoters.push(backupVoter);
+                }
+            }
+
+            prefecture.pop = adjustedPop;
+        });
+    }
+
+    class Voter {
+        constructor(id, pref, city, votePower, type = "一般") {
+            this.id = id;
+            this.pref = pref;
+            this.city = city;
+            this.votePower = Math.floor(votePower);
+            this.type = type;
+
+            // [経済, 国家, 外交] の思想
+            this.ideology = [getRandomRange(1, 100), getRandomRange(1, 100), getRandomRange(1, 100)];
+
+            // 🌟 空にしておき、あとから動的に候補者のIDを追加できるようにする
+            this.bonusScore = {};
+        }
+
+        /**
+         * 思想の近さ ＋ 選挙運動の成果（ボーナス）で投票先を決める
+         */
+        thinkAndVote(candidates) {
+            // 【ガード1】候補者リストが存在しない・空の場合は安全に抜ける
+            if (!candidates || !Array.isArray(candidates) || candidates.length === 0) {
+                return null;
+            }
+
+            let bestCandidate = null;
+            let highestScore = -Infinity;
+
+            // 与党・最大野党の判定用IDリスト（文字列変換で安全化）
+            const rulingPartyIds = (typeof rulingparty !== "undefined" && Array.isArray(rulingparty))
+                ? rulingparty.map(String) : [];
+            const largestOppId = (typeof largest_opoosition !== "undefined" && largest_opoosition)
+                ? String(largest_opoosition) : null;
+
+            candidates.forEach(candidate => {
+                if (!candidate || !candidate.ideology) return;
+
+                // 【修正1】配列形式 [50, 50, 50] でも オブジェクト形式 {axis1, axis2, axis3} でも動く安全取得
+                const candAxis1 = Array.isArray(candidate.ideology) ? candidate.ideology[0] : (candidate.ideology.axis1 ?? 50);
+                const candAxis2 = Array.isArray(candidate.ideology) ? candidate.ideology[1] : (candidate.ideology.axis2 ?? 50);
+                const candAxis3 = Array.isArray(candidate.ideology) ? candidate.ideology[2] : (candidate.ideology.axis3 ?? 50);
+
+                const voterAxis1 = Array.isArray(this.ideology) ? this.ideology[0] : (this.ideology?.axis1 ?? 50);
+                const voterAxis2 = Array.isArray(this.ideology) ? this.ideology[1] : (this.ideology?.axis2 ?? 50);
+                const voterAxis3 = Array.isArray(this.ideology) ? this.ideology[2] : (this.ideology?.axis3 ?? 50);
+
+                const diffEcon = Math.abs(voterAxis1 - candAxis1);
+                const diffNation = Math.abs(voterAxis2 - candAxis2);
+                const diffDiplomacy = Math.abs(voterAxis3 - candAxis3);
+                const distance = diffEcon + diffNation + diffDiplomacy;
+
+                // 基本スコア（思想が近いほど高得点：最大300点）
+                let score = 300 - distance;
+
+                // 🌟 【修正2】政党のゆるい優遇ロジック（第3党の逆転も十分あり得る絶妙な加点！）
+                const partyIdStr = String(candidate.partyId);
+
+                if (rulingPartyIds.includes(partyIdStr)) {
+                    // 与党：ほんのり優遇 (+25点)
+                    score += 25;
+                } else if (largestOppId && partyIdStr === largestOppId) {
+                    // 最大野党：ほんのり優遇 (+15点)
+                    score += 15;
+                }
+                // ※第3党や無所属へのマイナス補正は撤廃！
+                // 思想が有権者とドンピシャ（距離が近い）なら、政党加点を跳ね返して第3党候補が余裕で勝利します！
+
+                if (score > highestScore) {
+                    highestScore = score;
+                    bestCandidate = candidate;
+                }
+            });
+
+            // 候補者が選べなかった場合のフォールバック
+            if (!bestCandidate) {
+                bestCandidate = candidates[0];
+            }
+
+            return {
+                candidateId: bestCandidate.id,
+                candidateName: bestCandidate.name,
+                votes: this.votePower || 10000
+            };
+        }
+    }
+    // 🏠 1. 都道府県を選択するモーダルを開く
+    function startLocationSelection() {
+        // 現在ロードされている国データを取得
+        const currentCountryData = country[localStorage.getItem("poligame_data") ? JSON.parse(localStorage.getItem("poligame_data")).countrySelect || "jp" : "jp"];
+        const prefNames = Object.keys(currentCountryData.pref);
+
+        const modalWrapper = document.createElement("div");
+
+        // 🔍 都道府県の検索窓
+        const searchInput = document.createElement("input");
+        searchInput.type = "text";
+        searchInput.className = "modal-search-input";
+        searchInput.placeholder = "🔍 都道府県の名前で検索...";
+        modalWrapper.appendChild(searchInput);
+
+        // 🔲 都道府県ボックスのグリッド
+        const gridContainer = document.createElement("div");
+        gridContainer.className = "modal-pref-grid";
+
+        prefNames.forEach(prefName => {
+            const prefBox = document.createElement("div");
+            prefBox.className = "modal-pref-box";
+            prefBox.innerHTML = `<div>${prefName}</div><small style="font-size:11px; opacity:0.8;">人口:${currentCountryData.pref[prefName].pop}%</small>`;
+
+            // 都道府県が選ばれたら、次は「市の選択モーダル」へ進む
+            prefBox.addEventListener("click", () => {
+                openCitySelectionModal(prefName, currentCountryData.pref[prefName]);
+            });
+
+            gridContainer.appendChild(prefBox);
+        });
+        modalWrapper.appendChild(gridContainer);
+
+        // 都道府県のリアルタイム検索
+        searchInput.addEventListener("input", (e) => {
+            const keyword = e.target.value.toLowerCase().trim();
+            gridContainer.querySelectorAll(".modal-pref-box").forEach(box => {
+                if (box.textContent.toLowerCase().includes(keyword)) {
+                    box.style.display = "block";
+                } else {
+                    box.style.display = "none";
+                }
+            });
+        });
+
+        // 🌟 汎用モーダルで「都道府県選択」を表示
+        showModal("どこの都道府県で活動しますか？", modalWrapper, []);
+    }
+
+    // 🌆 2. 市を選択するモーダルを開く
+    function openCitySelectionModal(prefName, prefectureData) {
+        const modalWrapper = document.createElement("div");
+
+        // 🔍 市の検索窓
+        const searchInput = document.createElement("input");
+        searchInput.type = "text";
+        searchInput.className = "modal-search-input";
+        searchInput.placeholder = `🔍 ${prefName}の市名で検索...`;
+        modalWrapper.appendChild(searchInput);
+
+        // 🔲 市ボックスのグリッド
+        const gridContainer = document.createElement("div");
+        gridContainer.className = "modal-city-grid";
+
+        prefectureData.cities.forEach(cityName => {
+            const cityBox = document.createElement("div");
+            cityBox.className = "modal-city-box";
+            cityBox.textContent = cityName;
+
+            // 市が決定したら居住地を確定し、初期ボーナス計算へ！
+            cityBox.addEventListener("click", () => {
+                player.pref = prefName;
+                player.city = cityName;
+
+                // 🎁 初期ボーナスを付与して結果画面を出す
+                giveInitialBonus(prefName, cityName);
+            });
+
+            gridContainer.appendChild(cityBox);
+        });
+        modalWrapper.appendChild(gridContainer);
+
+        // 市のリアルタイム検索
+        searchInput.addEventListener("input", (e) => {
+            const keyword = e.target.value.toLowerCase().trim();
+            gridContainer.querySelectorAll(".modal-city-box").forEach(box => {
+                if (box.textContent.toLowerCase().includes(keyword)) {
+                    box.style.display = "block";
+                } else {
+                    box.style.display = "none";
+                }
+            });
+        });
+
+        // 🌟 汎用モーダルを上書きして「市選択」を表示（戻るボタン付き）
+        showModal(
+            `${prefName} のどの市にしますか？`,
+            modalWrapper,
+            [{ text: "⬅ 選び直す", className: "", callback: startLocationSelection, keepOpen: true }]
+        );
+    }
+
+    // 🎁 3. 初期ボーナスを計算してゲームを開始する
+    function giveInitialBonus(prefName, cityName) {
+        console.log(`🏠 プレイヤーの居住地確定: ${prefName} ${cityName}`);
+
+        // 🗳️ 天才Voterシステムとの連動！
+        // 地元の全有権者（Voter）たちの、プレイヤーに対する好感度を最初から一律「+30（地元補正）」にする！
+        let localVoterCount = 0;
+        allVoters.forEach(voter => {
+            if (voter.pref === prefName && voter.city === cityName) {
+                voter.bonusScore["player"] = 30; // プレイヤーへの基礎好感度
+                localVoterCount++;
+            }
+        });
+
+        // 結果表示メッセージ
+        const bonusHtml = `
+        <div style="text-align: left; line-height: 1.6;">
+            <p><b>${prefName}${cityName}</b>に引っ越しました！</p>
+            <hr>
+            <p>🎉 <b>【ようこそ！】</b></p>
+            <ul>
+                <li>💰 <b>資金:</b> ${player.money}円</li>
+                <li><b>XP:</b> ${player.xp}</li>
+
+            </ul>
+        </div>
+    `;
+        // 🌟 確定モーダルを表示！
+        showModal(
+            "住居",
+            bonusHtml,
+            [{ text: "始めよう！", className: "geo-box", callback: startGameMain }]
+        );
+        if (mode === "pr") {
+            gameEventManager.scheduleNextPresidentialElection(gameDate);
+        }
+        scheduleNextParlElection();
+        scheduleNextSenateElection(gameDate, "gusu");
+    }
+
+    function startGameMain() {
+        console.log("🎮 メインゲーム開始！ プレイヤーデータ:", player);
+        // ここからメイン画面の描画やターン処理に移行します
+    }
+
+
+
+    function startGameMain() {
+        console.log("🚀 居住地が確定したため、メインゲームシステムを起動します！");
+        // ここからターン処理などを進める
+    }
+
+    // 自動進行用のタイマーIDを保持する変数
+    let autoTurnInterval = null;
+
+    // 自動進行を開始する関数
+    function startAutoTurn() {
+        if (autoTurnInterval !== null) return;
+
+        document.getElementById("start-auto-btn").disabled = true;
+        document.getElementById("stop-auto-btn").disabled = false;
+
+        autoTurnInterval = setInterval(() => {
+            // 🚨 画面上の「ブロック対象の通知」をチェック
+            const hasBlockingNotice = document.querySelectorAll(".block-notice").length > 0;
+            if (hasBlockingNotice) {
+                console.warn("⚠️ 未処理の重要イベント（ブロック通知）が発生したため、自動進行を停止しました。");
+                stopAutoTurn(); // 💡 タイマー自体をしっかり止める
+                alert("⚠️ 未処理の重要なイベントがあります。通知をタップして対応してください！");
+                return;
+            }
+
+            try {
+                turnmove();
+            } catch (error) {
+                console.error("turnmoveの実行中にエラーが発生しました:", error);
+                stopAutoTurn(); // エラー時は安全のため自動停止
+            }
+        }, 10);
+    }
+
+    // 自動進行を停止する関数
+    function stopAutoTurn() {
+        if (autoTurnInterval !== null) {
+            clearInterval(autoTurnInterval);
+            autoTurnInterval = null;
+        }
+
+        document.getElementById("start-auto-btn").disabled = false;
+        document.getElementById("stop-auto-btn").disabled = true;
+    }
+
+
+
+</script>
+
+</html>
